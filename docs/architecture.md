@@ -47,6 +47,17 @@ The manager retains live entity references only while those entities are loaded,
 - Terrain capture is on-demand through `MaidObservationManager.captureTerrain(UUID)`, on the logical server thread. It is not scanned every server tick.
 - This is a local terrain representation, not a complete pathfinder. Navigation must still validate reachability and calculate a safe route between candidate cells.
 
+### Terrain debug rendering
+
+- Press `K` to toggle the client-side terrain grid overlay.
+- The overlay refreshes every 10 client ticks and displays grids for loaded maids within 32 blocks of the player.
+- Green: standable ground at roughly the maid's ground height.
+- Purple: standable ground more than one block higher.
+- Cyan: standable ground more than one block lower.
+- Blue: water; red: lava; orange: blocked body space.
+- The maid's own cell is white. Cells without detected ground are omitted.
+- Debug rendering and observation capture run only on the client when the overlay is enabled; server-side observation remains independent.
+
 ## MVP
 
 Three maids cooperate to maintain a farm after the player sets a food-production goal.
