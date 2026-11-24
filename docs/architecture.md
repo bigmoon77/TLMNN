@@ -1,45 +1,47 @@
-# Architecture
+# MaidMind Architecture
 
-## Design goals
+## Target
 
-MaidMind is a standalone Forge add-on. Minecraft integration, decision making, learning, and persistence should remain separate so the AI implementation can evolve without coupling it to Minecraft classes.
+- Minecraft 1.20.1
+- Forge 47.3.0
+- Java 17
+- Touhou Little Maid 1.20.1 (mod id: `touhou_little_maid`)
 
-## Hierarchical decision model
+## AI structure
 
-### Strategic layer
+MaidMind uses a shared strategic/tactical neural policy with per-maid memory.
 
-A shared model evaluates village-level context and player-assigned goals. It proposes priorities and task assignments.
+- Strategic NN selects goals, task assignments, and priorities.
+- Tactical NN selects concrete actions for an assigned goal.
+- Per-maid memory stores individual experience and local context.
+- World-scoped storage holds shared model parameters and training experience.
 
-### Tactical layer
+## Runtime boundaries
 
-A shared model selects actions for an individual maid using the current observation, assigned task, and that maid's private memory.
+- Minecraft world/entity access is performed on the logical server thread.
+- AI training runs on a background executor using immutable snapshots.
+- The action controller validates every proposed action before applying it to the world.
+- Model updates are applied at safe synchronization points.
+- Existing Touhou Little Maid behavior remains active until an explicit, tested handoff is implemented.
 
-### Individual memory
+## Touhou Little Maid integration
 
-Each maid retains personal experience and state. Memory is not merged into the shared model; selected experience may be sampled for group learning.
+MaidMind is an addon mod and uses the official extension mechanism:
 
-### Learning pipeline
+- `@LittleMaidExtension` / `ILittleMaid` registers the integration entry point.
+- `EntityJoinLevelEvent` detects maid entities on the logical server.
+- `MaidSnapshot` copies position, health, selected task id, and inventory slot values into a value-only snapshot.
+- The snapshot does not retain live entity or inventory-handler references.
 
-1. Collect transitions from completed or interrupted actions.
-2. Store experiences in a world-scoped replay buffer.
-3. Train candidate model parameters away from the Minecraft server thread.
-4. Evaluate candidates against a stable validation set.
-5. Publish accepted model versions at a safe synchronization point.
+The current integration milestone is observation only. Brain behavior registration, task ownership, and action execution will be added after the snapshot and scheduling boundaries are validated.
 
-## Threading rules
+## MVP
 
-- World reads and mutations must happen on the appropriate Minecraft server thread.
-- Neural inference should initially be bounded and predictable.
-- Training must not block the server tick.
-- Background workers must exchange immutable snapshots with the game thread.
-- Model updates must be applied atomically at controlled synchronization points.
+Three maids cooperate to maintain a farm after the player sets a food-production goal.
 
-## Initial implementation milestones
-
-1. Launch a minimal Forge mod in a development client.
-2. Verify Touhou Little Maid presence and discover stable integration hooks.
-3. Read maid observations without changing behavior.
-4. Add a goal/task representation and safe action adapter.
-5. Implement deterministic baseline behavior.
-6. Add a fixed-topology neural policy and measurable training loop.
-7. Explore dynamic topology evolution only after baseline learning is reproducible.
+1. Detect farmable terrain and available resources.
+2. Assign complementary roles.
+3. Execute validated farming actions.
+4. Record outcomes and per-maid memory.
+5. Update shared model parameters.
+6. Persist learned state per world.
