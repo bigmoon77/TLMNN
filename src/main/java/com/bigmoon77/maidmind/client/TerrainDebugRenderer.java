@@ -139,6 +139,10 @@ public final class TerrainDebugRenderer {
                 red = 0.1F;
                 green = 0.45F;
                 blue = 1.0F;
+            } else if (cell.bodyBlocked()) {
+                red = 1.0F;
+                green = 0.25F;
+                blue = 0.08F;
             } else if (!cell.standable()) {
                 red = 1.0F;
                 green = 0.62F;

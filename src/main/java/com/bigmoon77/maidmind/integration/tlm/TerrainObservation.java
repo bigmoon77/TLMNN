@@ -8,6 +8,7 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -57,7 +58,7 @@ public record TerrainObservation(
 
         for (int dz = -radius; dz <= radius; dz++) {
             for (int dx = -radius; dx <= radius; dx++) {
-                cells.add(captureCell(level, pos, centerX + dx, centerY, centerZ + dz,
+                cells.add(captureCell(level, maid, pos, centerX + dx, centerY, centerZ + dz,
                         dx, dz, verticalRange, centerY));
             }
         }
@@ -67,6 +68,7 @@ public record TerrainObservation(
 
     private static Cell captureCell(
             Level level,
+            EntityMaid maid,
             BlockPos.MutableBlockPos pos,
             int x,
             int referenceY,
@@ -94,22 +96,26 @@ public record TerrainObservation(
             boolean headBlocked = !headState.getCollisionShape(level, pos).isEmpty();
 
             boolean lava = feetFluid.is(FluidTags.LAVA)
-                    || feetState.getFluidState().is(FluidTags.LAVA)
                     || headState.getFluidState().is(FluidTags.LAVA);
             boolean water = feetFluid.is(FluidTags.WATER)
                     || headState.getFluidState().is(FluidTags.WATER);
 
+            double halfWidth = maid.getBbWidth() * 0.5;
+            AABB candidateBox = new AABB(
+                    x + 0.5 - halfWidth,
+                    y + 1.0,
+                    z + 0.5 - halfWidth,
+                    x + 0.5 + halfWidth,
+                    y + 1.0 + maid.getBbHeight(),
+                    z + 0.5 + halfWidth
+            );
+            boolean bodyBlocked = level.getBlockCollisions(maid, candidateBox).iterator().hasNext();
+            boolean standable = !bodyBlocked && !lava;
+
             return new Cell(
-                    offsetX,
-                    offsetZ,
-                    y,
-                    y - centerGroundY,
-                    true,
-                    !feetBlocked && !headBlocked && !lava,
-                    feetBlocked,
-                    headBlocked,
-                    water,
-                    lava,
+                    offsetX, offsetZ, y, y - centerGroundY,
+                    true, standable, feetBlocked, headBlocked, bodyBlocked,
+                    water, lava,
                     BuiltInRegistries.BLOCK.getKey(groundState.getBlock()),
                     BuiltInRegistries.BLOCK.getKey(feetState.getBlock()),
                     BuiltInRegistries.BLOCK.getKey(headState.getBlock())
@@ -117,30 +123,18 @@ public record TerrainObservation(
         }
 
         return new Cell(
-                offsetX,
-                offsetZ,
-                NO_GROUND,
-                0,
-                false,
-                false,
-                false,
-                false,
-                false,
-                false,
+                offsetX, offsetZ, NO_GROUND, 0,
+                false, false, false, false, false, false, false,
                 BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos.set(x, referenceY, z)).getBlock()),
                 BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos.set(x, referenceY + 1, z)).getBlock()),
                 BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos.set(x, referenceY + 2, z)).getBlock())
         );
     }
 
-    /**
-     * Returns the cell at a relative horizontal coordinate, or null outside the grid.
-     */
     public Cell cellAt(int offsetX, int offsetZ) {
         if (Math.abs(offsetX) > radius || Math.abs(offsetZ) > radius) {
             return null;
         }
-
         int width = radius * 2 + 1;
         return cells.get((offsetZ + radius) * width + offsetX + radius);
     }
@@ -154,6 +148,7 @@ public record TerrainObservation(
             boolean standable,
             boolean feetBlocked,
             boolean headBlocked,
+            boolean bodyBlocked,
             boolean water,
             boolean lava,
             ResourceLocation groundBlockId,
