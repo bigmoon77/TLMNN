@@ -1,3 +1,4 @@
 {
-  "key.maidmind.toggle_terrain_debug": "Toggle terrain grid debug overlay"
+  "key.maidmind.toggle_terrain_debug": "Toggle terrain grid debug overlay",
+  "key.maidmind.toggle_line_of_sight_debug": "Toggle line-of-sight debug logging"
 }

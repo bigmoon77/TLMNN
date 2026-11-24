@@ -15,6 +15,11 @@ public final class TerrainDebugKeybinds {
             GLFW.GLFW_KEY_K,
             "key.categories.misc"
     );
+    public static final KeyMapping TOGGLE_LINE_OF_SIGHT_DEBUG = new KeyMapping(
+            "key.maidmind.toggle_line_of_sight_debug",
+            GLFW.GLFW_KEY_L,
+            "key.categories.misc"
+    );
 
     private TerrainDebugKeybinds() {
     }
@@ -22,5 +27,6 @@ public final class TerrainDebugKeybinds {
     @SubscribeEvent
     public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
         event.register(TOGGLE_TERRAIN_DEBUG);
+        event.register(TOGGLE_LINE_OF_SIGHT_DEBUG);
     }
 }

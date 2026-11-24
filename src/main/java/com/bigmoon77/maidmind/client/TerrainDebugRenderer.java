@@ -1,6 +1,7 @@
 package com.bigmoon77.maidmind.client;
 
 import com.bigmoon77.maidmind.MaidMind;
+import com.bigmoon77.maidmind.integration.tlm.LineOfSightObservation;
 import com.bigmoon77.maidmind.integration.tlm.TerrainObservation;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -10,6 +11,9 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -20,7 +24,9 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Mod.EventBusSubscriber(
@@ -31,9 +37,13 @@ import java.util.UUID;
 public final class TerrainDebugRenderer {
     private static final int REFRESH_INTERVAL_TICKS = 10;
     private static final double SEARCH_RADIUS = 32.0;
+    private static final double LINE_OF_SIGHT_RADIUS = 16.0;
 
     private static final Map<UUID, TerrainObservation> OBSERVATIONS = new HashMap<>();
+    private static final Map<UUID, String> TERRAIN_LOG_STATES = new HashMap<>();
+    private static final Map<String, String> LINE_OF_SIGHT_LOG_STATES = new HashMap<>();
     private static boolean enabled;
+    private static boolean lineOfSightLoggingEnabled;
     private static int refreshTicks;
 
     private TerrainDebugRenderer() {
@@ -52,13 +62,23 @@ public final class TerrainDebugRenderer {
 
             if (!enabled) {
                 OBSERVATIONS.clear();
-                MaidMind.LOGGER.info("Terrain grid debug rendering disabled.");
+                TERRAIN_LOG_STATES.clear();
+                MaidMind.LOGGER.info("Terrain grid debug rendering and logging disabled.");
             } else {
-                MaidMind.LOGGER.info("Terrain grid debug rendering enabled.");
+                MaidMind.LOGGER.info("Terrain grid debug rendering and logging enabled.");
             }
         }
 
-        if (!enabled || minecraft.level == null || minecraft.player == null) {
+        while (TerrainDebugKeybinds.TOGGLE_LINE_OF_SIGHT_DEBUG.consumeClick()) {
+            lineOfSightLoggingEnabled = !lineOfSightLoggingEnabled;
+            LINE_OF_SIGHT_LOG_STATES.clear();
+            MaidMind.LOGGER.info("Line-of-sight debug logging {}.",
+                    lineOfSightLoggingEnabled ? "enabled" : "disabled");
+        }
+
+        if ((!enabled && !lineOfSightLoggingEnabled)
+                || minecraft.level == null
+                || minecraft.player == null) {
             return;
         }
 
@@ -69,19 +89,124 @@ public final class TerrainDebugRenderer {
 
         Level level = minecraft.level;
         Player player = minecraft.player;
+
+        if (enabled) {
+            refreshTerrainObservations(level, player);
+        }
+        if (lineOfSightLoggingEnabled) {
+            refreshLineOfSightLogs(level, player);
+        }
+    }
+
+    private static void refreshTerrainObservations(Level level, Player player) {
         Map<UUID, TerrainObservation> refreshed = new HashMap<>();
 
         for (EntityMaid maid : level.getEntitiesOfClass(
                 EntityMaid.class,
                 player.getBoundingBox().inflate(SEARCH_RADIUS)
         )) {
-            if (!maid.isRemoved()) {
-                refreshed.put(maid.getUUID(), TerrainObservation.capture(maid));
+            if (maid.isRemoved()) {
+                continue;
+            }
+
+            TerrainObservation observation = TerrainObservation.capture(maid);
+            refreshed.put(maid.getUUID(), observation);
+
+            int groundCount = 0;
+            int standableCount = 0;
+            int blockedCount = 0;
+            int lavaCount = 0;
+            int waterCount = 0;
+
+            for (TerrainObservation.Cell cell : observation.cells()) {
+                if (cell.hasGround()) {
+                    groundCount++;
+                }
+                if (cell.standable()) {
+                    standableCount++;
+                }
+                if (cell.bodyBlocked()) {
+                    blockedCount++;
+                }
+                if (cell.lava()) {
+                    lavaCount++;
+                }
+                if (cell.water()) {
+                    waterCount++;
+                }
+            }
+
+            String state = "ground=" + groundCount
+                    + ", standable=" + standableCount
+                    + ", bodyBlocked=" + blockedCount
+                    + ", water=" + waterCount
+                    + ", lava=" + lavaCount;
+
+            if (!state.equals(TERRAIN_LOG_STATES.put(maid.getUUID(), state))) {
+                MaidMind.LOGGER.info(
+                        "Terrain debug: maid={}, center=({}, {}, {}), {}",
+                        maid.getUUID(),
+                        observation.centerX(),
+                        observation.centerY(),
+                        observation.centerZ(),
+                        state
+                );
             }
         }
 
         OBSERVATIONS.clear();
         OBSERVATIONS.putAll(refreshed);
+        TERRAIN_LOG_STATES.keySet().retainAll(refreshed.keySet());
+    }
+
+    private static void refreshLineOfSightLogs(Level level, Player player) {
+        Set<String> activePairs = new HashSet<>();
+
+        for (EntityMaid maid : level.getEntitiesOfClass(
+                EntityMaid.class,
+                player.getBoundingBox().inflate(SEARCH_RADIUS)
+        )) {
+            if (maid.isRemoved()) {
+                continue;
+            }
+
+            for (Entity target : level.getEntities(
+                    maid,
+                    maid.getBoundingBox().inflate(LINE_OF_SIGHT_RADIUS),
+                    entity -> entity instanceof LivingEntity living
+                            && living.isAlive()
+                            && !entity.isSpectator()
+            )) {
+                String pairKey = maid.getUUID() + "->" + target.getUUID();
+                activePairs.add(pairKey);
+
+                LineOfSightObservation observation = LineOfSightObservation.capture(maid, target);
+                String state = observation.clear()
+                        ? "clear"
+                        : "blocked by " + observation.blockingBlockId()
+                                + " at (" + format(observation.hitX())
+                                + ", " + format(observation.hitY())
+                                + ", " + format(observation.hitZ()) + ")";
+
+                String previous = LINE_OF_SIGHT_LOG_STATES.put(pairKey, state);
+                if (!state.equals(previous)) {
+                    MaidMind.LOGGER.info(
+                            "Line of sight: maid={} target={} type={} distance={} {}",
+                            maid.getUUID(),
+                            target.getUUID(),
+                            BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()),
+                            format(observation.distance()),
+                            state
+                    );
+                }
+            }
+        }
+
+        LINE_OF_SIGHT_LOG_STATES.keySet().retainAll(activePairs);
+    }
+
+    private static String format(double value) {
+        return String.format(java.util.Locale.ROOT, "%.2f", value);
     }
 
     @SubscribeEvent

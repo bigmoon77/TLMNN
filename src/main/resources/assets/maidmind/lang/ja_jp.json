@@ -1,3 +1,4 @@
 {
-  "key.maidmind.toggle_terrain_debug": "地形グリッドのデバッグ表示切り替え"
+  "key.maidmind.toggle_terrain_debug": "地形グリッドのデバッグ表示切り替え",
+  "key.maidmind.toggle_line_of_sight_debug": "視線遮蔽デバッグログ切り替え"
 }
