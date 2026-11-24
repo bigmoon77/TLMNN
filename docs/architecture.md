@@ -34,6 +34,7 @@ MaidMind is an addon mod and uses the official extension mechanism:
 - `MaidObservationManager` tracks loaded maids by UUID and refreshes their observations every 20 server ticks (about one second).
 - `MaidSnapshot` copies precise coordinates, health, task id, and inventory slot values into an immutable value-only snapshot.
 - `MaidObservationManager.INSTANCE.getSnapshots()` exposes a read-only copy of the latest observations for future AI consumers.
+- The manager compares each refreshed snapshot with the previous one and logs changes to block coordinates, health, task id, and inventory slots. Position logs are emitted when the maid crosses a block boundary to keep movement logging readable.
 
 The manager retains live entity references only while those entities are loaded, and all access occurs on the logical server thread. Consumers receive snapshots rather than entity references. The current registry is in-memory; world-scoped persistence and neural-network integration are later milestones.
 

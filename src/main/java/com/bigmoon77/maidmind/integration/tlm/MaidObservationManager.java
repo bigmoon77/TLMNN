@@ -1,10 +1,14 @@
 package com.bigmoon77.maidmind.integration.tlm;
 
+import com.bigmoon77.maidmind.MaidMind;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -33,7 +37,7 @@ public final class MaidObservationManager {
 
         if (newlyTracked) {
             MaidSnapshot snapshot = snapshots.get(uuid);
-            com.bigmoon77.maidmind.MaidMind.LOGGER.info(
+            MaidMind.LOGGER.info(
                     "Detected Touhou Little Maid: uuid={}, task={}, inventorySlots={}, occupiedSlots={}",
                     snapshot.uuid(),
                     snapshot.taskId(),
@@ -68,8 +72,84 @@ public final class MaidObservationManager {
                 continue;
             }
 
-            snapshots.put(entry.getKey(), MaidSnapshot.capture(maid));
+            MaidSnapshot previous = snapshots.get(entry.getKey());
+            MaidSnapshot current = MaidSnapshot.capture(maid);
+            snapshots.put(entry.getKey(), current);
+
+            if (previous != null) {
+                logChanges(previous, current);
+            }
         }
+    }
+
+    private void logChanges(MaidSnapshot previous, MaidSnapshot current) {
+        List<String> changes = new ArrayList<>();
+
+        if (blockCoordinateChanged(previous.x(), current.x())
+                || blockCoordinateChanged(previous.y(), current.y())
+                || blockCoordinateChanged(previous.z(), current.z())) {
+            changes.add(String.format(
+                    "position=(%.2f, %.2f, %.2f)",
+                    current.x(), current.y(), current.z()
+            ));
+        }
+
+        if (Float.compare(previous.health(), current.health()) != 0) {
+            changes.add(String.format(
+                    "health=%.1f->%.1f",
+                    previous.health(), current.health()
+            ));
+        }
+
+        if (!Objects.equals(previous.taskId(), current.taskId())) {
+            changes.add("task=" + previous.taskId() + "->" + current.taskId());
+        }
+
+        List<String> inventoryChanges = getInventoryChanges(previous, current);
+        if (!inventoryChanges.isEmpty()) {
+            changes.add("inventoryChanges=" + inventoryChanges);
+        }
+
+        if (!changes.isEmpty()) {
+            MaidMind.LOGGER.info(
+                    "Maid observation updated: uuid={}, {}",
+                    current.uuid(),
+                    String.join(", ", changes)
+            );
+        }
+    }
+
+    private boolean blockCoordinateChanged(double previous, double current) {
+        return Math.floor(previous) != Math.floor(current);
+    }
+
+    private List<String> getInventoryChanges(MaidSnapshot previous, MaidSnapshot current) {
+        List<String> changes = new ArrayList<>();
+        int slotCount = Math.max(previous.inventory().size(), current.inventory().size());
+
+        for (int slot = 0; slot < slotCount; slot++) {
+            MaidSnapshot.InventoryEntry oldEntry = slot < previous.inventory().size()
+                    ? previous.inventory().get(slot)
+                    : null;
+            MaidSnapshot.InventoryEntry newEntry = slot < current.inventory().size()
+                    ? current.inventory().get(slot)
+                    : null;
+
+            if (Objects.equals(oldEntry, newEntry)) {
+                continue;
+            }
+
+            String oldValue = oldEntry == null
+                    ? "missing"
+                    : oldEntry.itemId() + "x" + oldEntry.count();
+            String newValue = newEntry == null
+                    ? "missing"
+                    : newEntry.itemId() + "x" + newEntry.count();
+
+            changes.add(slot + ":" + oldValue + "->" + newValue);
+        }
+
+        return changes;
     }
 
     /**
