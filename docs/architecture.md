@@ -30,10 +30,12 @@ MaidMind is an addon mod and uses the official extension mechanism:
 
 - `@LittleMaidExtension` / `ILittleMaid` registers the integration entry point.
 - `EntityJoinLevelEvent` detects maid entities on the logical server.
-- `MaidSnapshot` copies position, health, selected task id, and inventory slot values into a value-only snapshot.
-- The snapshot does not retain live entity or inventory-handler references.
+- `EntityLeaveLevelEvent` removes observations when a maid leaves the loaded world.
+- `MaidObservationManager` tracks loaded maids by UUID and refreshes their observations every 20 server ticks (about one second).
+- `MaidSnapshot` copies precise coordinates, health, task id, and inventory slot values into an immutable value-only snapshot.
+- `MaidObservationManager.INSTANCE.getSnapshots()` exposes a read-only copy of the latest observations for future AI consumers.
 
-The current integration milestone is observation only. Brain behavior registration, task ownership, and action execution will be added after the snapshot and scheduling boundaries are validated.
+The manager retains live entity references only while those entities are loaded, and all access occurs on the logical server thread. Consumers receive snapshots rather than entity references. The current registry is in-memory; world-scoped persistence and neural-network integration are later milestones.
 
 ## MVP
 

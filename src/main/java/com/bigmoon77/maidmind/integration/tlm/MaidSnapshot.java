@@ -1,10 +1,10 @@
 package com.bigmoon77.maidmind.integration.tlm;
 
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraftforge.items.ItemStackHandler;
 
 import java.util.ArrayList;
@@ -12,20 +12,21 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Immutable, world-thread-created view of a maid's current state.
+ * Immutable, value-only view of a maid's state.
  *
- * The snapshot deliberately contains plain values instead of live inventory handlers,
- * so later AI and learning code can consume it without retaining mutable game objects.
+ * Capture this on the logical server thread. The resulting object can safely be
+ * handed to later AI code without retaining a live entity or inventory handler.
  */
 public record MaidSnapshot(
         UUID uuid,
-        BlockPos position,
+        double x,
+        double y,
+        double z,
         ResourceLocation taskId,
         float health,
         List<InventoryEntry> inventory
 ) {
     public MaidSnapshot {
-        position = position.immutable();
         inventory = List.copyOf(inventory);
     }
 
@@ -36,7 +37,7 @@ public record MaidSnapshot(
         for (int slot = 0; slot < handler.getSlots(); slot++) {
             ItemStack stack = handler.getStackInSlot(slot);
             ResourceLocation itemId = stack.isEmpty()
-                    ? BuiltInRegistries.ITEM.getKey(net.minecraft.world.item.Items.AIR)
+                    ? BuiltInRegistries.ITEM.getKey(Items.AIR)
                     : BuiltInRegistries.ITEM.getKey(stack.getItem());
 
             inventory.add(new InventoryEntry(slot, itemId, stack.getCount()));
@@ -44,7 +45,9 @@ public record MaidSnapshot(
 
         return new MaidSnapshot(
                 maid.getUUID(),
-                maid.blockPosition(),
+                maid.getX(),
+                maid.getY(),
+                maid.getZ(),
                 maid.getTask().getUid(),
                 maid.getHealth(),
                 inventory

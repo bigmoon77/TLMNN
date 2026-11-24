@@ -1,8 +1,9 @@
 package com.bigmoon77.maidmind.integration.tlm;
 
-import com.bigmoon77.maidmind.MaidMind;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
+import net.minecraftforge.event.entity.EntityLeaveLevelEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 public final class MaidMindTlmEvents {
@@ -12,13 +13,22 @@ public final class MaidMindTlmEvents {
             return;
         }
 
-        MaidSnapshot snapshot = MaidSnapshot.capture(maid);
-        MaidMind.LOGGER.info(
-                "Detected Touhou Little Maid: uuid={}, task={}, inventorySlots={}, occupiedSlots={}",
-                snapshot.uuid(),
-                snapshot.taskId(),
-                snapshot.inventory().size(),
-                snapshot.inventory().stream().filter(entry -> entry.count() > 0).count()
-        );
+        MaidObservationManager.INSTANCE.onMaidLoaded(maid);
+    }
+
+    @SubscribeEvent
+    public void onEntityLeaveLevel(EntityLeaveLevelEvent event) {
+        if (event.getLevel().isClientSide() || !(event.getEntity() instanceof EntityMaid maid)) {
+            return;
+        }
+
+        MaidObservationManager.INSTANCE.onMaidUnloaded(maid);
+    }
+
+    @SubscribeEvent
+    public void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase == TickEvent.Phase.END) {
+            MaidObservationManager.INSTANCE.tick();
+        }
     }
 }
