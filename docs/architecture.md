@@ -38,6 +38,15 @@ MaidMind is an addon mod and uses the official extension mechanism:
 
 The manager retains live entity references only while those entities are loaded, and all access occurs on the logical server thread. Consumers receive snapshots rather than entity references. The current registry is in-memory; world-scoped persistence and neural-network integration are later milestones.
 
+## Terrain observation
+
+- `TerrainObservation` captures a square horizontal grid centered on a maid (default radius: 8 blocks).
+- Each cell records ground height relative to the maid, ground/feet/head block identifiers, clearance, water, and lava.
+- A cell is marked standable when it has a collision-bearing ground block, two clear body blocks, and no lava in the body space.
+- The grid is immutable and contains only primitive values and registry identifiers; it can be handed to background AI code.
+- Terrain capture is on-demand through `MaidObservationManager.captureTerrain(UUID)`, on the logical server thread. It is not scanned every server tick.
+- This is a local terrain representation, not a complete pathfinder. Navigation must still validate reachability and calculate a safe route between candidate cells.
+
 ## MVP
 
 Three maids cooperate to maintain a farm after the player sets a food-production goal.

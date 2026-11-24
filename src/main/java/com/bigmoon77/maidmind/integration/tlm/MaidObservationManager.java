@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -157,6 +158,21 @@ public final class MaidObservationManager {
      */
     public Map<UUID, MaidSnapshot> getSnapshots() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(snapshots));
+    }
+
+    /**
+     * Captures a terrain grid for a currently loaded maid.
+     *
+     * This method must be called on the logical server thread. Capture is
+     * intentionally on-demand so terrain scanning is only performed when
+     * combat AI requests it.
+     */
+    public Optional<TerrainObservation> captureTerrain(UUID uuid) {
+        EntityMaid maid = trackedMaids.get(uuid);
+        if (maid == null || maid.isRemoved()) {
+            return Optional.empty();
+        }
+        return Optional.of(TerrainObservation.capture(maid));
     }
 
     public int getTrackedMaidCount() {
